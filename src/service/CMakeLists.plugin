@@ -1,0 +1,17 @@
+cmake_minimum_required (VERSION 2.6)
+add_library (${plugin_name} SHARED
+    ${plugin_sources}
+    )
+include_directories (
+    ../..
+    ../../../3rdparty
+    )
+set (fasmiosdk -Wl,--whole-archive fasmiosdk -Wl,--no-whole-archive)
+target_link_libraries (${plugin_name}
+    ${fasmiosdk}
+    common
+    )
+add_custom_command (TARGET ${plugin_name}
+    POST_BUILD
+    COMMAND ../plugin-test-loader/plugin-test-loader ./lib${plugin_name}.so
+    )
