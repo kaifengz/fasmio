@@ -25,6 +25,7 @@ private:
             NONE = 0,
             ROOT,
             META,
+            TASK,
         } state;
         std::unique_ptr<service::ITask> task;
         unsigned long count;

@@ -619,7 +619,7 @@ bool FiberEnv::Schedule(ThreadContext *thread_context, void (*func)(ThreadContex
             return false;
     }
 
-    // after SwitchTo we may runs in another thread-context now!
+    // after SwitchTo the fiber may be running in another thread-context!
     thread_context = GetThreadContext();
     assert(thread_context != nullptr);
     assert(thread_context->next_fiber_ != nullptr);

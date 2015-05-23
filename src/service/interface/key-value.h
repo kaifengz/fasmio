@@ -44,6 +44,9 @@ public:
 public:
     virtual IKey*         Clone                () = 0;
     virtual void          Clear                () = 0;
+    virtual unsigned long ChildrenCount        () = 0;
+    virtual unsigned long SubKeyCount          () = 0;
+    virtual unsigned long ValueCount           () = 0;
 
     virtual const char*   GetName              () = 0;
     virtual bool          SetName              (const char*) = 0;

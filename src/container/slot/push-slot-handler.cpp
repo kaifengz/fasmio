@@ -49,94 +49,71 @@ ResponseCode PushSlotHandler::ServeRequest(INetRequest *request, IOStream *ostre
     return succeed ? RC_OK : RC_BAD_REQUEST;
 }
 
+#define INFO    context->handler->agent_->Info
+
 bool PushSlotHandler::OnEnterKey(const char* name, void* arg)
 {
     ParseContext *context = reinterpret_cast<ParseContext*>(arg);
     assert(context != nullptr);
 
-    if (context->state != ParseContext::NONE)
+    if (0 != strcasecmp(name, "root"))
+    {
+        INFO("Unexpected top level key '%s'", name);
         return false;
-
-    if (0 == strcasecmp(name, "root"))
-    {
-        context->state = ParseContext::ROOT;
-        return true;
     }
-    else if (0 == strcasecmp(name, "meta"))
+
+    while (true)
     {
+        TlvParser::ParseResult result;
+
         std::unique_ptr<TaskMetaImpl> meta(new TaskMetaImpl);
-        if (!meta->UnSerialize(context->parser))
+        result = meta->UnSerialize(context->parser);
+        if (result == TlvParser::R_KEY_END)
+            break;
+
+        if (result != TlvParser::R_KEY)
+        {
+            INFO("Failed to unserialize the META");
             return false;
+        }
 
         assert(context->task.get() == nullptr);
         context->task.reset(context->handler->allocator_(context->handler->agent_->GetService()));
         context->task->SetTaskMeta(meta.release());
-        context->state = ParseContext::META;
-        return true;
+
+        if (TlvParser::R_VALUE != (result = context->parser->Parse()))
+            return false;
     }
-    else
-    {
-        return false;
-    }
+
+    return true;
 }
 
 bool PushSlotHandler::OnLeaveKey(const char* name, void* arg)
 {
-    ParseContext *context = reinterpret_cast<ParseContext*>(arg);
-    assert(context != nullptr);
-
-    if (context->state != ParseContext::ROOT)
-        return false;
-
-    context->state = ParseContext::NONE;
-    return true;
+    return false;
 }
 
 bool PushSlotHandler::OnValue(const char* name, IIStream *is, void* arg)
 {
     ParseContext *context = reinterpret_cast<ParseContext*>(arg);
     assert(context != nullptr);
+    assert(context->handler != nullptr);
+    assert(context->handler->queue_ != nullptr);
 
-    PushSlotHandler *handler = context->handler;
-    assert(handler != nullptr);
+    if (0 != strcasecmp(name, "task"))
+        return false;
 
-    switch (context->state)
+    assert(context->task.get() != nullptr);
+    assert(context->task->GetTaskMeta() != nullptr);
+    if (!context->task->UnSerialize(is))
     {
-//    case ParseContext::ROOT:
-//        {
-//            if (0 != strcasecmp(name, "meta"))
-//                return false;
-//
-//            std::unique_ptr<TaskMetaImpl> meta(new TaskMetaImpl);
-//            if (!meta->UnSerialize(is))
-//                return false;
-//
-//            assert(context->task.get() == nullptr);
-//            context->task.reset(handler->allocator_(handler->agent_->GetService()));
-//            context->task->SetTaskMeta(meta.release());
-//            context->state = ParseContext::META;
-//            return true;
-//        }
-
-    case ParseContext::META:
-        {
-            if (0 != strcasecmp(name, "task"))
-                return false;
-
-            assert(context->task.get() != nullptr);
-            assert(context->task->GetTaskMeta() != nullptr);
-            if (!context->task->UnSerialize(is))
-                return false;
-
-            handler->queue_->AddTask(context->task.release());
-            context->state = ParseContext::ROOT;
-            ++(context->count);
-            return true;
-        }
-
-    default:
+        INFO("Failed to unserialize the TASK");
         return false;
     }
+
+    context->handler->queue_->AddTask(context->task.release());
+    ++(context->count);
+    return true;
 }
 
 }}  // namespace fasmio::container

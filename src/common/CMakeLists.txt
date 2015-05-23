@@ -9,6 +9,7 @@ add_library (common
     string.cpp
     task-scheduler.cpp
     thread-pool.cpp
+    uuid.cpp
     )
 include_directories (
     ..

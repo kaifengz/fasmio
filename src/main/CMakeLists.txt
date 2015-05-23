@@ -14,5 +14,6 @@ target_link_libraries (fasmio
     pthreadenv
     runtimeenv
     pthread
+    uuid
     dl
     )

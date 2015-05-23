@@ -42,14 +42,19 @@ class KeyValueImpl: public ValueBase, public KeyBase
 {
 public:
     KeyValueImpl();
+    explicit KeyValueImpl(const char* name, KeyValueType = KeyValue_Undecided);
     virtual ~KeyValueImpl();
 
 public:
     // non-virtual
     bool                  Serialize            (TlvComposer*);
-    bool                  UnSerialize          (TlvParser*);
+    TlvParser::ParseResult  UnSerialize        (TlvParser*);
 
     void                  Swap                 (KeyValueImpl &);
+
+    KeyValueImpl*         CloneKeyValue        ();
+
+    void                  Dump                 (int indent = 0);
 
 public:
     // for IValue & IKey common
@@ -84,6 +89,9 @@ public:
     virtual IKey*         CloneKey             ();
 
     virtual void          Clear                ();
+    virtual unsigned long ChildrenCount        ();
+    virtual unsigned long SubKeyCount          ();
+    virtual unsigned long ValueCount           ();
 
     virtual IKey*         GetNextKey           ();
     virtual IKey*         GetPrevKey           ();
@@ -125,8 +133,6 @@ public:
     virtual bool          AppendBoolValue      (const char* name, bool         value);
 
 protected:
-    KeyValueImpl*         CloneKeyValue        ();
-
     KeyValueImpl*         GetFirstChild        (KeyValueType);
     KeyValueImpl*         GetLastChild         (KeyValueType);
     KeyValueImpl*         GetNextSibling       (KeyValueType);
@@ -158,7 +164,8 @@ private:
     KeyValueType          type_;
     std::string           name_;
     std::string           value_;
-    unsigned long         children_;
+    unsigned long         subkeys_;
+    unsigned long         values_;
     KeyValueImpl         *first_child_;
     KeyValueImpl         *last_child_;
     KeyValueImpl         *next_sibling_;

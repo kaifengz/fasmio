@@ -65,7 +65,6 @@ bool PopSlotHandler::SerializeTasks(
     if (!composer.BeginKey("root"))
         return false;
 
-    // unsigned int serialized_size = 0;
     *serialized = count;
     for (unsigned int i = 0; i < count; ++i)
     {
@@ -81,9 +80,12 @@ bool PopSlotHandler::SerializeTasks(
         if (meta != nullptr)
         {
             if (!meta->Serialize(&composer))
+            {
+                agent_->Error("Failed to unserialize the META");
                 return false;
+            }
         }
-        if (composer.EndKey("meta"))
+        if (!composer.EndKey("meta"))
             return false;
 
         IOStream *os_task = composer.BeginValue("task");

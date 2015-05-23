@@ -29,14 +29,22 @@ public:
     bool PushCallbacks();
     bool RestoreCallbacks();
 
-    bool Parse();
+    enum ParseResult
+    {
+        R_FAILED = 0,
+        R_KEY,
+        R_VALUE,
+        R_KEY_END,
+    };
+
+    ParseResult Parse();
 
 protected:
     // for IIStream
     virtual long Read(void* buff, long size);
 
 private:
-    bool ParseNode(bool *is_key_end = nullptr);
+    ParseResult ParseNode();
     bool ParseKey(const char* name);
     bool ParseValue(const char* name);
     int GetVarInt();

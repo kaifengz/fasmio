@@ -8,6 +8,7 @@ add_executable (test
     common/stream-adaptor-test.cpp
     container/key-value-impl-test.cpp
     container/request-impl-test.cpp
+    container/task-meta-impl-test.cpp
     container/tlv-composer-test.cpp
     container/tlv-parser-test.cpp
     fiber-env/cooperative-condition-test.cpp
@@ -33,6 +34,7 @@ target_link_libraries (test
     fiberenv
     runtimeenv
     pthread
+    uuid
     )
 add_custom_target (check ./test
     DEPENDS test

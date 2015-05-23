@@ -63,60 +63,46 @@ bool TlvParser::RestoreCallbacks()
     return true;
 }
 
-bool TlvParser::Parse()
+TlvParser::ParseResult TlvParser::Parse()
 {
     if (is_ == nullptr)
-        return false;
+        return R_FAILED;
 
-    bool key_end = false;
-    bool succeed = ParseNode(&key_end);
-    return succeed && !key_end;
+    return ParseNode();
 }
 
-bool TlvParser::ParseNode(bool *is_key_end)
+TlvParser::ParseResult TlvParser::ParseNode()
 {
     // type: one byte, 'k', 'v', or 'e'
     char type;
     if (1 != is_->Read(&type, 1))
-        return false;
+        return R_FAILED;
 
-    {   const bool key_end = (type == 'e' || type == 'E');
-        if (is_key_end != nullptr)
-            *is_key_end = key_end;
-        if (key_end)
-            return true;
-    }
+    if (type == 'e' || type == 'E')
+        return R_KEY_END;
 
     const bool is_key = (type == 'k' || type == 'K');
     const bool is_value = (type == 'v' || type == 'V');
 
     if (!is_key && !is_value)
-        return false;
+        return R_FAILED;
 
     // name-len: 1~127
     const int name_len = GetVarInt();
     if (name_len <= 0 || name_len >= 128)
-        return false;
+        return R_FAILED;
 
     // name
     char name[128];
     if (name_len != is_->Read(name, name_len))
-        return false;
+        return R_FAILED;
     name[name_len] = '\0';
 
     // key or value
     if (is_key)
-    {
-        if (!ParseKey(name))
-            return false;
-    }
+        return ParseKey(name) ? R_KEY : R_FAILED;
     else  // if (is_value)
-    {
-        if (!ParseValue(name))
-            return false;
-    }
-
-    return true;
+        return ParseValue(name) ? R_VALUE : R_FAILED;
 }
 
 bool TlvParser::ParseKey(const char* name)
@@ -129,10 +115,10 @@ bool TlvParser::ParseKey(const char* name)
 
     while (true)
     {
-        bool key_end = false;
-        if (!ParseNode(&key_end))
+        ParseResult result = ParseNode();
+        if (result == R_FAILED)
             return false;
-        if (key_end)
+        if (result == R_KEY_END)
             break;
     }
 

@@ -28,6 +28,7 @@ public:
     bool AddValue(const char* name, long value);
     bool AddValue(const char* name, unsigned long value);
     bool AddValue(const char* name, double value);
+    bool AddValue(const char* name, bool value);
 
     long GetWroteSize();
 

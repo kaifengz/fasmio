@@ -164,6 +164,14 @@ bool TlvComposer::AddValue(const char* name, double value)
     return add_value(name, reinterpret_cast<const unsigned char*>(buff), length);
 }
 
+bool TlvComposer::AddValue(const char* name, bool value)
+{
+    if (os_ == nullptr || name == nullptr)
+        return false;
+
+    return add_value(name, reinterpret_cast<const unsigned char*>(value ? "1" : "0"), 1);
+}
+
 long TlvComposer::GetWroteSize()
 {
     return total_wrote_;

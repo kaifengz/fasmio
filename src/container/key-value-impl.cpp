@@ -11,7 +11,22 @@ KeyValueImpl::KeyValueImpl() :
     type_(KeyValue_Undecided),
     name_(),
     value_(),
-    children_(0),
+    subkeys_(0),
+    values_(0),
+    first_child_(nullptr),
+    last_child_(nullptr),
+    next_sibling_(nullptr),
+    prev_sibling_(nullptr),
+    parent_(nullptr)
+{
+}
+
+KeyValueImpl::KeyValueImpl(const char* name, KeyValueType type) :
+    type_(type),
+    name_(name),
+    value_(),
+    subkeys_(0),
+    values_(0),
     first_child_(nullptr),
     last_child_(nullptr),
     next_sibling_(nullptr),
@@ -30,7 +45,8 @@ KeyValueImpl::~KeyValueImpl()
     assert(prev_sibling_ == nullptr);
     assert(first_child_ == nullptr);
     assert(last_child_ == nullptr);
-    assert(children_ == 0);
+    assert(subkeys_ == 0);
+    assert(values_ == 0);
 }
 
 bool KeyValueImpl::Serialize(TlvComposer* composer)
@@ -62,13 +78,13 @@ bool KeyValueImpl::Serialize(TlvComposer* composer)
     }
 }
 
-bool KeyValueImpl::UnSerialize(TlvParser* parser)
+TlvParser::ParseResult KeyValueImpl::UnSerialize(TlvParser* parser)
 {
     if (parser == nullptr)
-        return false;
+        return TlvParser::R_FAILED;
 
     if (!parser->PushCallbacks())
-        return false;
+        return TlvParser::R_FAILED;
 
     KeyValueImpl kv;
 
@@ -79,14 +95,14 @@ bool KeyValueImpl::UnSerialize(TlvParser* parser)
     parser->SetEnterKeyCallback(OnEnterKey, &context);
     parser->SetLeaveKeyCallback(OnLeaveKey, &context);
     parser->SetValueCallback(OnValue, &context);
-    bool succeed = parser->Parse();
+    TlvParser::ParseResult result = parser->Parse();
 
     if (!parser->RestoreCallbacks())
-        return false;
+        return TlvParser::R_FAILED;
 
-    if (succeed)
+    if (result == TlvParser::R_KEY || result == TlvParser::R_VALUE)
         this->Swap(kv);
-    return succeed;
+    return result;
 }
 
 void KeyValueImpl::Swap(KeyValueImpl &kv)
@@ -94,7 +110,8 @@ void KeyValueImpl::Swap(KeyValueImpl &kv)
     std::swap(type_,         kv.type_);
     std::swap(name_,         kv.name_);
     std::swap(value_,        kv.value_);
-    std::swap(children_,     kv.children_);
+    std::swap(subkeys_,      kv.subkeys_);
+    std::swap(values_,       kv.values_);
     std::swap(first_child_,  kv.first_child_);
     std::swap(last_child_,   kv.last_child_);
     std::swap(next_sibling_, kv.next_sibling_);
@@ -230,7 +247,12 @@ bool KeyValueImpl::SetTextValue(const char* value)
         return false;
 
     value_ = value;
-    type_ = KeyValue_Value;
+    if (type_ == KeyValue_Undecided)
+    {
+        if (parent_ != nullptr)
+            ++(parent_->values_);
+        type_ = KeyValue_Value;
+    }
     return true;
 }
 
@@ -241,7 +263,12 @@ bool KeyValueImpl::SetLongValue(long value)
     char buff[32];
     snprintf(buff, sizeof(buff), "%ld", value);
     value_ = buff;
-    type_ = KeyValue_Value;
+    if (type_ == KeyValue_Undecided)
+    {
+        if (parent_ != nullptr)
+            ++(parent_->values_);
+        type_ = KeyValue_Value;
+    }
     return true;
 }
 
@@ -252,7 +279,12 @@ bool KeyValueImpl::SetDoubleValue(double value)
     char buff[64];
     snprintf(buff, sizeof(buff), "%lf", value);
     value_ = buff;
-    type_ = KeyValue_Value;
+    if (type_ == KeyValue_Undecided)
+    {
+        if (parent_ != nullptr)
+            ++(parent_->values_);
+        type_ = KeyValue_Value;
+    }
     return true;
 }
 
@@ -261,7 +293,12 @@ bool KeyValueImpl::SetBoolValue(bool value)
     assert(type_ == KeyValue_Undecided || type_ == KeyValue_Value);
 
     value_ = (value ? "1" : "0");
-    type_ = KeyValue_Value;
+    if (type_ == KeyValue_Undecided)
+    {
+        if (parent_ != nullptr)
+            ++(parent_->values_);
+        type_ = KeyValue_Value;
+    }
     return true;
 }
 
@@ -292,13 +329,27 @@ void KeyValueImpl::Clear()
         child->prev_sibling_ = nullptr;
         delete child;
         child = next;
-
-        --(this->children_);
     }
 
+    this->subkeys_ = 0;
+    this->values_ = 0;
     this->first_child_ = nullptr;
     this->last_child_ = nullptr;
-    assert(this->children_ == 0);
+}
+
+unsigned long KeyValueImpl::ChildrenCount()
+{
+    return subkeys_ + values_;
+}
+
+unsigned long KeyValueImpl::SubKeyCount()
+{
+    return subkeys_;
+}
+
+unsigned long KeyValueImpl::ValueCount()
+{
+    return values_;
 }
 
 IKey* KeyValueImpl::GetNextKey()
@@ -348,7 +399,11 @@ bool KeyValueImpl::DeleteKey(const char* name)
 
 IKey* KeyValueImpl::AppendKey(IKey* key)
 {
-    return static_cast<IKey*>(AppendDirectChild(dynamic_cast<KeyValueImpl*>(key)));
+    KeyValueImpl *kv = dynamic_cast<KeyValueImpl*>(key);
+    if (kv == nullptr || (kv->type_ != KeyValue_Undecided && kv->type_ != KeyValue_Key))
+        return nullptr;
+    kv->type_ = KeyValue_Key;
+    return static_cast<IKey*>(AppendDirectChild(kv));
 }
 
 IKey* KeyValueImpl::ReleaseKey(IKey* key)
@@ -555,6 +610,20 @@ KeyValueImpl* KeyValueImpl::CloneKeyValue()
     return cloned;
 }
 
+void KeyValueImpl::Dump(int indent)
+{
+    if (type_ == KeyValue_Key)
+    {
+        printf("%-*sKey %s\n", indent*2, "", name_.c_str());
+        for (KeyValueImpl* child = first_child_; child != nullptr; child = child->next_sibling_)
+            child->Dump(indent+1);
+    }
+    else if (type_ == KeyValue_Value)
+    {
+        printf("%-*sValue %s = '%s'\n", indent*2, "", name_.c_str(), value_.c_str());
+    }
+}
+
 KeyValueImpl* KeyValueImpl::GetFirstChild(KeyValueType type)
 {
     for (KeyValueImpl* child = first_child_; child != nullptr; child = child->next_sibling_)
@@ -666,7 +735,11 @@ KeyValueImpl* KeyValueImpl::ReleaseDeepChild(KeyValueImpl* kv)
     else
         kv->next_sibling_->prev_sibling_ = kv->prev_sibling_;
 
-    --(kv->parent_->children_);
+    if (kv->type_ == KeyValue_Key)
+        --(kv->parent_->subkeys_);
+    else if (kv->type_ == KeyValue_Value)
+        --(kv->parent_->values_);
+
     kv->parent_ = nullptr;
     kv->next_sibling_ = nullptr;
     kv->prev_sibling_ = nullptr;
@@ -735,7 +808,12 @@ KeyValueImpl* KeyValueImpl::AppendDirectChild(KeyValueImpl* kv)
         return nullptr;
 
     assert(type_ == KeyValue_Undecided || type_ == KeyValue_Key);
-    this->type_ = KeyValue_Key;
+    if (type_ == KeyValue_Undecided)
+    {
+        if (parent_ != nullptr)
+            ++(parent_->subkeys_);
+        type_ = KeyValue_Key;
+    }
 
     kv->parent_ = this;
     kv->prev_sibling_ = this->last_child_;
@@ -752,7 +830,10 @@ KeyValueImpl* KeyValueImpl::AppendDirectChild(KeyValueImpl* kv)
     }
     this->last_child_ = kv;
 
-    ++(this->children_);
+    if (kv->type_ == KeyValue_Key)
+        ++(this->subkeys_);
+    else if (kv->type_ == KeyValue_Value)
+        ++(this->values_);
     return kv;
 }
 

@@ -451,5 +451,23 @@ namespace {
         TlvParser parser(&stream);
         EXPECT_TRUE(!kv.UnSerialize(&parser));
     }
+
+    TEST(KeyValueImpl, Count)
+    {
+        KeyValueImpl kv;
+        EXPECT_EQ(0, kv.ChildrenCount());
+        EXPECT_EQ(0, kv.SubKeyCount());
+        EXPECT_EQ(0, kv.ValueCount());
+
+        kv.AppendKey(new KeyValueImpl("what"));
+        EXPECT_EQ(1, kv.ChildrenCount());
+        EXPECT_EQ(1, kv.SubKeyCount());
+        EXPECT_EQ(0, kv.ValueCount());
+
+        kv.AppendTextValue("why", "why not");
+        EXPECT_EQ(2, kv.ChildrenCount());
+        EXPECT_EQ(1, kv.SubKeyCount());
+        EXPECT_EQ(1, kv.ValueCount());
+    }
 }
 

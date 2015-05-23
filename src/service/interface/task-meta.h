@@ -8,7 +8,7 @@ namespace fasmio { namespace service {
 
 enum TaskMetaFormat
 {
-    TMF_BINARY = 0,
+    TMF_TLV = 0,
     TMF_XML,
     // TODO
 //  TMF_JSON,
@@ -34,7 +34,7 @@ public:
     virtual const char*   GetGeneratorService  ()            = 0;
     virtual double        GetBirthTime         ()            = 0;
     virtual bool          NeedAck              ()            = 0;
-    virtual unsigned int  GetResendCount       ()            = 0;
+    virtual unsigned long GetResendCount       ()            = 0;
     virtual double        GetResendTime        ()            = 0;
 
     virtual bool          SetGeneratorInfo     (const char* node,
@@ -42,7 +42,7 @@ public:
                                                 double birth_time,
                                                 bool need_ack) = 0;
 
-    virtual bool          SetResendInfo        (unsigned int resend_count,
+    virtual bool          SetResendInfo        (unsigned long resend_count,
                                                 double resend_time) = 0;
 
 public:

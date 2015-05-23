@@ -1,14 +1,49 @@
 
 #include "./task-meta-impl.h"
 #include "common/stream-adaptor.h"
+#include "common/uuid.h"
 #include <assert.h>
+#include <string.h>
 
-#define DEFAULT_META_FORMAT fasmio::service::TMF_BINARY
+#define DEFAULT_META_FORMAT fasmio::service::TMF_TLV
 
 namespace fasmio { namespace container {
 
 TaskMetaImpl::TaskMetaImpl() :
-    task_ids_()
+    task_ids_(),
+    generator_node_(),
+    generator_service_(),
+    birth_time_(0.0),
+    need_ack_(true),
+    resend_count_(0),
+    resend_time_(0.0),
+    user_data_()
+{
+}
+
+TaskMetaImpl::TaskMetaImpl(const char* task_id) :
+    task_ids_(),
+    generator_node_(),
+    generator_service_(),
+    birth_time_(0.0),
+    need_ack_(true),
+    resend_count_(0),
+    resend_time_(0.0),
+    user_data_()
+{
+    assert(task_id != nullptr);
+    task_ids_.push_back(task_id);
+}
+
+TaskMetaImpl::TaskMetaImpl(const TaskMetaImpl &meta) :
+    task_ids_(meta.task_ids_),
+    generator_node_(meta.generator_node_),
+    generator_service_(meta.generator_service_),
+    birth_time_(meta.birth_time_),
+    need_ack_(meta.need_ack_),
+    resend_count_(meta.resend_count_),
+    resend_time_(meta.resend_time_),
+    user_data_(meta.user_data_.get() != nullptr ? meta.user_data_->Clone() : nullptr)
 {
 }
 
@@ -69,38 +104,32 @@ const char* TaskMetaImpl::GetParentID(const char* id)
 
 const char* TaskMetaImpl::GetGeneratorNode()
 {
-    // TODO:
-    return nullptr;
+    return generator_node_.c_str();
 }
 
 const char* TaskMetaImpl::GetGeneratorService()
 {
-    // TODO:
-    return nullptr;
+    return generator_service_.c_str();
 }
 
 double TaskMetaImpl::GetBirthTime()
 {
-    // TODO:
-    return 0.0;
+    return birth_time_;
 }
 
 bool TaskMetaImpl::NeedAck()
 {
-    // TODO:
-    return true;
+    return need_ack_;
 }
 
-unsigned int TaskMetaImpl::GetResendCount()
+unsigned long TaskMetaImpl::GetResendCount()
 {
-    // TODO:
-    return 0;
+    return resend_count_;
 }
 
 double TaskMetaImpl::GetResendTime()
 {
-    // TODO:
-    return 0.0;
+    return resend_time_;
 }
 
 bool TaskMetaImpl::SetGeneratorInfo(const char* node,
@@ -108,14 +137,21 @@ bool TaskMetaImpl::SetGeneratorInfo(const char* node,
                                     double birth_time,
                                     bool need_ack)
 {
-    // TODO:
+    if (node == nullptr || service == nullptr)
+        return false;
+
+    generator_node_ = node;
+    generator_service_ = service;
+    birth_time_ = birth_time;
+    need_ack_ = need_ack;
     return true;
 }
 
-bool TaskMetaImpl::SetResendInfo(unsigned int resend_count,
-                                    double resend_time)
+bool TaskMetaImpl::SetResendInfo(unsigned long resend_count,
+                                 double resend_time)
 {
-    // TODO:
+    resend_count_ = resend_count;
+    resend_time_ = resend_time;
     return true;
 }
 
@@ -127,8 +163,10 @@ service::ITaskJourney* TaskMetaImpl::GetJourney()
 
 service::IKey* TaskMetaImpl::GetUserData()
 {
-    // TODO:
-    return nullptr;
+    if (user_data_.get() == nullptr)
+        user_data_.reset(new KeyValueImpl("User", KeyValue_Key));
+
+    return static_cast<service::IKey*>(user_data_.get());
 }
 
 bool TaskMetaImpl::ClearJourney()
@@ -139,26 +177,34 @@ bool TaskMetaImpl::ClearJourney()
 
 bool TaskMetaImpl::ClearUserData()
 {
-    // TODO:
+    if (user_data_.get() != nullptr)
+        user_data_->Clear();
+
     return true;
 }
 
 service::ITaskMeta* TaskMetaImpl::Clone()
 {
-    // TODO:
-    return nullptr;
+    return new TaskMetaImpl(*this);
 }
 
 service::ITaskMeta* TaskMetaImpl::Fork()
 {
-    // TODO:
-    return nullptr;
+    TaskMetaImpl *meta = new TaskMetaImpl(*this);
+    if (meta != nullptr)
+        meta->task_ids_.push_back(common::GenUUID());
+    return meta;
 }
 
-service::ITaskMeta* TaskMetaImpl::Fork(const char*)
+service::ITaskMeta* TaskMetaImpl::Fork(const char* task_id)
 {
-    // TODO:
-    return nullptr;
+    if (task_id == nullptr)
+        return nullptr;
+
+    TaskMetaImpl *meta = new TaskMetaImpl(*this);
+    if (meta != nullptr)
+        meta->task_ids_.push_back(task_id);
+    return meta;
 }
 
 bool TaskMetaImpl::Serialize(IOStream* os)
@@ -170,7 +216,7 @@ bool TaskMetaImpl::Serialize(IOStream* os, service::TaskMetaFormat format)
 {
     switch (format)
     {
-    case fasmio::service::TMF_BINARY:
+    case fasmio::service::TMF_TLV:
         {
             TlvComposer composer(os);
             return Serialize(&composer) && composer.CheckIntegrity();
@@ -187,9 +233,8 @@ bool TaskMetaImpl::Serialize(IOStream* os, service::TaskMetaFormat format)
 
 bool TaskMetaImpl::UnSerialize(IIStream* is)
 {
-//    common::IStreamAdaptor adaptor(is);
-//    return UnSerialize(adaptor);
-    return false;
+    TlvParser parser(is);
+    return TlvParser::R_KEY == UnSerialize(&parser);
 }
 
 bool TaskMetaImpl::Serialize(TlvComposer *composer)
@@ -197,27 +242,121 @@ bool TaskMetaImpl::Serialize(TlvComposer *composer)
     if (composer == nullptr)
         return false;
 
-    // TODO:
+    if (!task_ids_.empty())
+    {
+        if (!composer->BeginKey("TaskIds"))
+            return false;
+        for (std::vector<std::string>::const_iterator iter = task_ids_.begin();
+            iter != task_ids_.end(); ++iter)
+        {
+            if (!composer->AddValue("TaskId", iter->c_str()))
+                return false;
+        }
+        if (!composer->EndKey("TaskIds"))
+            return false;
+    }
+
+    if (!composer->BeginKey("Generator") ||
+        !composer->AddValue("Node", generator_node_.c_str()) ||
+        !composer->AddValue("Service", generator_service_.c_str()) ||
+        !composer->AddValue("BirthTime", birth_time_) ||
+        (!need_ack_ && !composer->AddValue("NeedAck", need_ack_)) ||
+        !composer->AddValue("ResendCount", resend_count_) ||
+        (resend_count_ > 0 && !composer->AddValue("ResendTime", resend_time_)) ||
+        !composer->EndKey("Generator"))
+    {
+        return false;
+    }
+
+    // TODO: Serialize Journey
+
+    if (user_data_.get() != nullptr && user_data_->ChildrenCount() > 0)
+    {
+        KeyValueImpl *user = static_cast<KeyValueImpl*>(user_data_.get());
+        if (!user->Serialize(composer))
+            return false;
+    }
+
     return true;
 }
 
-bool TaskMetaImpl::UnSerialize(TlvParser *parser)
+TlvParser::ParseResult TaskMetaImpl::UnSerialize(TlvParser *parser)
 {
     if (parser == nullptr)
-        return false;
+        return TlvParser::R_FAILED;
 
-    parser->PushCallbacks();
+    KeyValueImpl meta_kv;
+    TlvParser::ParseResult result = meta_kv.UnSerialize(parser);
+    if (result != TlvParser::R_KEY)
+        return result;
 
-    // TODO:
+    TaskMetaImpl meta;
+    if (!meta.parse_from(static_cast<service::IKey*>(&meta_kv)))
+        return TlvParser::R_FAILED;
 
-    parser->RestoreCallbacks();
-    return true;
+    this->Swap(meta);
+    return result;
+}
+
+void TaskMetaImpl::Swap(TaskMetaImpl &meta)
+{
+    std::swap(task_ids_,           meta.task_ids_);
+    std::swap(generator_node_,     meta.generator_node_);
+    std::swap(generator_service_,  meta.generator_service_);
+    std::swap(birth_time_,         meta.birth_time_);
+    std::swap(need_ack_,           meta.need_ack_);
+    std::swap(resend_count_,       meta.resend_count_);
+    std::swap(resend_time_,        meta.resend_time_);
+    std::swap(user_data_,          meta.user_data_);
 }
 
 void TaskMetaImpl::allocate_id()
 {
     assert(task_ids_.empty());
-    task_ids_.push_back("TODO: random UUID as task id"); // TODO
+    task_ids_.push_back(common::GenUUID());
+}
+
+bool TaskMetaImpl::parse_from(service::IKey* meta)
+{
+    service::IKey *key = nullptr;
+
+    if (nullptr == (key = meta->GetKey("Generator")))
+        // generator info must included
+        return false;
+    else
+    {
+        const char* text_value = nullptr;
+        if (nullptr == (text_value = key->GetTextValue("Node")))
+            return false;
+        generator_node_ = text_value;
+        if (nullptr == (text_value = key->GetTextValue("Service")))
+            return false;
+        generator_service_ = text_value;
+        if (!key->TryGetDoubleValue("BirthTime", &birth_time_))
+            return false;
+        key->TryGetBoolValue("NeedAck", &need_ack_);
+        if (!key->TryGetLongValue("ResendCount", &resend_count_))
+            return false;
+        if (resend_count_ > 0 && !key->TryGetDoubleValue("ResendTime", &resend_time_))
+            return false;
+    }
+
+    if (nullptr != (key = meta->GetKey("TaskIds")))
+    {
+        for (service::IValue *value = key->GetFirstValue(); value != nullptr; value = value->GetNextValue())
+        {
+            if (0 == strcasecmp("TaskId", value->GetName()))
+                task_ids_.push_back(value->GetTextValue());
+        }
+    }
+
+    if (nullptr != (key = meta->GetKey("Journey")))
+    {
+        // TODO:
+    }
+
+    user_data_.reset(meta->ReleaseKey("User"));
+    return true;
 }
 
 }}  // namespace fasmio::container

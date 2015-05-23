@@ -27,32 +27,28 @@ namespace {
 
     TEST(TlvParser, General)
     {
-#define TEST_STR(str, result) \
+#define TEST_STR(result, str) \
         do { \
             std::istringstream iss(std::string(str, sizeof(str)-1)); \
             fasmio::common::StdIStreamAdaptor adaptor(iss); \
             TlvParser parser(&adaptor); \
             EXPECT_TRUE(result == parser.Parse()); \
         } while (0)
-#define GOOD(str) TEST_STR(str, true)
-#define BAD(str)  TEST_STR(str, false)
 
-        BAD("");
-        BAD("k");
-        BAD("v");
-        BAD("e");
+        TEST_STR(TlvParser::R_FAILED, "");
+        TEST_STR(TlvParser::R_FAILED, "k");
+        TEST_STR(TlvParser::R_FAILED, "v");
+        TEST_STR(TlvParser::R_KEY_END, "e");
 
-        GOOD("k\004roote");
-        GOOD("v\004name\005value\000");
+        TEST_STR(TlvParser::R_KEY, "k\004roote");
+        TEST_STR(TlvParser::R_VALUE, "v\004name\005value\000");
 
-        BAD("k\004root");  // missing the ending 'e'
-        BAD("v\004name\005va");  // unexpected value end
+        TEST_STR(TlvParser::R_FAILED, "k\004root");  // missing the ending 'e'
+        TEST_STR(TlvParser::R_FAILED, "v\004name\005va");  // unexpected value end
 
-        GOOD(complex_data);
+        TEST_STR(TlvParser::R_KEY, complex_data);
 
 #undef TEST_STR
-#undef GOOD
-#undef BAD
     }
 
     struct context_t

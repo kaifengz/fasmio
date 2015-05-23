@@ -1,4 +1,5 @@
 *.a
+*.pyc
 *.so
 *.swp
 *.xsd.cpp

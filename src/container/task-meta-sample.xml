@@ -6,7 +6,12 @@
     </TaskIds>
 
     <Generator>
-        <!-- TODO -->
+        <Node>node-name</Node>
+        <Service>service-name</Service>
+        <BirthTime>1397878994.944346</BirthTime>
+        <NeedAck>1</NeedAck>
+        <ResendCount>1</ResendCount>
+        <ResendTime>1397878999.944346</ResendTime>
     </Generator>
 
     <Journey>
