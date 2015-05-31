@@ -28,7 +28,6 @@
 namespace fasmio { namespace net_client {
 
 const unsigned short kDefaultFcgiPort = 9000;
-const unsigned long kContentLengthNotSpecified = 0xFFFFFFFF;
 
 FcgiConn::FcgiConn(IRuntimeEnv* env, ILogger* logger) :
     ConnBase(env, logger, "FcgiClient"),

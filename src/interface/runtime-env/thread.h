@@ -23,8 +23,8 @@ public:
     // Join'ed when it quitted.  Note that the IThread object may be deleted
     // upon SetDaemon returns.
     //
-    // Daemon thread are not joinable; try to join a daemon would result in
-    // undefined behavior
+    // Daemon threads are not joinable; try to join a daemon thread would
+    // result in undefined behavior
     virtual void SetDaemon() = 0;
 
     virtual bool IsDaemon() = 0;

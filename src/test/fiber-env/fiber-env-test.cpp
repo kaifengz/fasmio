@@ -353,7 +353,7 @@ namespace test_daemon { namespace {
         return 0;
     }
 
-    TEST(FiberEnv, FiberizeThisThread) {
+    TEST(FiberEnv, SetDaemon) {
         FiberEnv env;
 
         EXPECT_TRUE(env.Start(1));

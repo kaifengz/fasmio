@@ -11,7 +11,10 @@ Makefile
 cmake_install.cmake
 
 3rdparty
+backup
 dist
+output
+run
 
 fasmio
 ftpd

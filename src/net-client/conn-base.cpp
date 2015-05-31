@@ -9,8 +9,6 @@
 
 namespace fasmio { namespace net_client {
 
-const unsigned long kContentLengthNotSpecified = 0xFFFFFFFF;
-
 ConnBase::ConnBase(IRuntimeEnv* env, ILogger* logger, const char* module_name) :
     env_(env),
     logger_(logger),
@@ -119,6 +117,7 @@ bool ConnBase::Retrieve(int *status_code)
             break;
     }
 
+    Close(&is);
     return true;
 }
 

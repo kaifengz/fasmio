@@ -24,3 +24,6 @@ add_custom_target (wc
 add_custom_target (build
     COMMAND scripts/build.sh
     )
+add_custom_target (run
+    COMMAND cd ../run && ./fasmio
+    )
